@@ -201,4 +201,4 @@ mock-mesh is a development tool. Defaults are chosen accordingly:
 
 ## License
 
-MIT © Daniele Dapuzzo — <https://github.com/dandpz/mock-mesh>
+MIT
