@@ -1,0 +1,87 @@
+openapi: 3.0.3
+info:
+  title: Petstore
+  version: 1.0.0
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      responses:
+        '200':
+          description: a list of pets
+          content:
+            application/json:
+              example:
+                - id: 1
+                  name: rex
+                - id: 2
+                  name: bella
+    post:
+      operationId: createPet
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+  /pets/special:
+    get:
+      operationId: specialPet
+      responses:
+        '200':
+          description: a special pet
+          content:
+            application/json:
+              example:
+                special: true
+  /pets/{petId}:
+    get:
+      operationId: getPet
+      responses:
+        '200':
+          description: a pet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        '404':
+          description: not found
+    delete:
+      operationId: deletePet
+      responses:
+        '204':
+          description: deleted
+  /health:
+    get:
+      operationId: health
+      responses:
+        default:
+          description: ok
+          content:
+            application/json:
+              example:
+                ok: true
+components:
+  schemas:
+    Pet:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        name:
+          type: string
+        tag:
+          type: string
+        owner:
+          $ref: '#/components/schemas/Owner'
+    Owner:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email

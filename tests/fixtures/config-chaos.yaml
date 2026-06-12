@@ -1,0 +1,38 @@
+# Simulation showcase for petstore.yaml.
+defaults: {}
+endpoints:
+  - path: /pets
+    method: GET
+    behavior:
+      latency: { fixed_ms: 150, jitter_ms: 50 }
+
+  - path: /pets/{petId}
+    method: GET
+    behavior:
+      rate_limit: { rps: 0.5, burst: 2 }
+
+  - path: /pets
+    method: POST
+    behavior:
+      error_mode:
+        kind: status
+        code: 500
+        body: { error: "internal", message: "simulated failure" }
+
+  - path: /pets/special
+    method: GET
+    behavior:
+      error_mode: { kind: hang, max_secs: 1 }
+
+  - path: /health
+    method: GET
+    behavior:
+      error_mode: { kind: abort }
+
+  - path: /always-limited
+    method: GET
+    behavior:
+      rate_limit: { rps: 100, burst: 5, reject_probability: 1.0 }
+    response:
+      status: 200
+      body: { ok: true }

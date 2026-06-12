@@ -1,0 +1,67 @@
+openapi: 3.1.0
+info:
+  title: Schema Zoo
+  version: 1.0.0
+paths:
+  /zoo:
+    get:
+      responses:
+        '200':
+          description: every schema feature we generate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Zoo'
+  /node:
+    get:
+      responses:
+        '200':
+          description: self-referential
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+components:
+  schemas:
+    Zoo:
+      type: object
+      required: [uuid, email, when, choice, status, score, maybe, pets]
+      properties:
+        uuid: { type: string, format: uuid }
+        email: { type: string, format: email }
+        when: { type: string, format: date-time }
+        choice:
+          oneOf:
+            - type: integer
+              minimum: 7
+              maximum: 7
+            - type: string
+        status:
+          enum: [open, closed, pending]
+        score:
+          type: number
+          minimum: 0
+          maximum: 10
+        maybe:
+          type: [string, "null"]
+        pets:
+          type: array
+          minItems: 2
+          maxItems: 3
+          items:
+            allOf:
+              - type: object
+                required: [id]
+                properties:
+                  id: { type: integer, minimum: 1, maximum: 9 }
+              - type: object
+                required: [kind]
+                properties:
+                  kind: { type: string }
+    Node:
+      type: object
+      required: [name, next]
+      properties:
+        name: { type: string }
+        next:
+          $ref: '#/components/schemas/Node'

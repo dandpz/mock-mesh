@@ -1,0 +1,46 @@
+[package]
+name = "mock-mesh"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+authors = ["Daniele Dapuzzo"]
+license = "MIT"
+repository = "https://github.com/dandpz/mock-mesh"
+description = "High-throughput mock HTTP server driven by OpenAPI specs, with latency, rate-limit and error-state simulation"
+keywords = ["mock", "openapi", "testing", "http", "chaos"]
+categories = ["command-line-utilities", "development-tools::testing"]
+
+[dependencies]
+arc-swap = "1.9"
+axum = "0.8"
+bytes = "1"
+clap = { version = "4.6", features = ["derive", "env"] }
+http = "1.4"
+http-body-util = "0.1"
+hyper = { version = "1.10", features = ["http1", "http2", "server"] }
+hyper-util = { version = "0.1", features = ["tokio", "server-auto", "service"] }
+notify = "8.2"
+rand = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml_ng = "0.10"
+socket2 = "0.6"
+thiserror = "2"
+tokio = { version = "1.52", features = ["full"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tower = "0.5"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+reqwest = { version = "0.13", features = ["json"] }
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

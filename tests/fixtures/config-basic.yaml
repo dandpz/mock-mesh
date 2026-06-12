@@ -1,0 +1,19 @@
+# Augments petstore.yaml without simulations: response overrides and a
+# config-only route.
+endpoints:
+  - path: /pets/special
+    method: GET
+    response:
+      status: 200
+      headers:
+        x-mock: "true"
+      body:
+        overridden: true
+
+  - path: /internal/flags
+    method: GET
+    response:
+      status: 200
+      body:
+        dark_mode: true
+        beta: false
