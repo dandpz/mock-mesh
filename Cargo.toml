@@ -2,7 +2,7 @@
 name = "mock-mesh"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 authors = ["Daniele Dapuzzo"]
 license = "MIT"
 repository = "https://github.com/dandpz/mock-mesh"

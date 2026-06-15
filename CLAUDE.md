@@ -5,6 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```sh
+make check                                  # everything CI runs: fmt-check + clippy + tests — use before pushing
+make help                                   # list all Makefile targets (run, validate, msrv, ...)
 cargo test                                  # full suite: unit + integration (tests/)
 cargo test --test hot_reload                # one integration suite
 cargo test token_bucket_throttles_burst     # one test by name
