@@ -1,0 +1,34 @@
+# cargo-deny configuration — https://embarkstudios.github.io/cargo-deny/
+# Run locally with: cargo deny check
+
+[advisories]
+# RUSTSEC advisory database checks (vulnerabilities, unmaintained, yanked).
+yanked = "deny"
+ignore = []
+
+[licenses]
+# Allow-list of acceptable SPDX licenses. Tune as the dependency tree grows.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+    "MPL-2.0",
+    "CC0-1.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+# Duplicate dependency versions are noisy but not fatal; surface them as warnings.
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+# Only crates.io is trusted; reject crates from unknown registries or git sources.
+unknown-registry = "deny"
+unknown-git = "deny"
