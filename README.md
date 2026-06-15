@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/mock-mesh.svg" alt="mock-mesh — mock HTTP server with network-fault simulation" width="180">
+</p>
+
 # mock-mesh
 
 A single-binary, high-throughput mock HTTP server driven by an OpenAPI spec —

@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="mock-mesh — mock HTTP server with network-fault simulation">
+  <defs>
+    <linearGradient id="hub" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#39d2ff"/>
+      <stop offset="1" stop-color="#2188ff"/>
+    </linearGradient>
+    <linearGradient id="node" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#58a6ff"/>
+      <stop offset="1" stop-color="#1f6feb"/>
+    </linearGradient>
+    <linearGradient id="fault" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffbd2e"/>
+      <stop offset="1" stop-color="#f85149"/>
+    </linearGradient>
+  </defs>
+
+  <!-- card -->
+  <rect x="2" y="2" width="252" height="252" rx="56" fill="#0d1117" stroke="#30363d" stroke-width="4"/>
+
+  <!-- mesh edges: hub spokes -->
+  <g stroke="#1f6feb" stroke-width="3" opacity="0.55" fill="none">
+    <path d="M128 128 L208 128"/>
+    <path d="M128 128 L168 59"/>
+    <path d="M128 128 L88 59"/>
+    <path d="M128 128 L48 128"/>
+    <path d="M128 128 L88 197"/>
+  </g>
+
+  <!-- mesh edges: outer ring -->
+  <g stroke="#30363d" stroke-width="3" fill="none">
+    <path d="M208 128 L168 59"/>
+    <path d="M168 59 L88 59"/>
+    <path d="M88 59 L48 128"/>
+    <path d="M48 128 L88 197"/>
+    <path d="M88 197 L168 197"/>
+    <path d="M168 197 L208 128"/>
+  </g>
+
+  <!-- faulted edge to the chaos node (dropped/errored response) -->
+  <path d="M128 128 L168 197" stroke="url(#fault)" stroke-width="3.5"
+        stroke-dasharray="9 7" stroke-linecap="round" fill="none"/>
+
+  <!-- satellite nodes -->
+  <g stroke="#0d1117" stroke-width="3">
+    <circle cx="208" cy="128" r="14" fill="url(#node)"/>
+    <circle cx="168" cy="59"  r="14" fill="url(#node)"/>
+    <circle cx="88"  cy="59"  r="14" fill="url(#node)"/>
+    <circle cx="48"  cy="128" r="14" fill="url(#node)"/>
+    <circle cx="88"  cy="197" r="14" fill="url(#node)"/>
+  </g>
+
+  <!-- chaos / fault node -->
+  <circle cx="168" cy="197" r="15" fill="url(#fault)" stroke="#0d1117" stroke-width="3"/>
+  <path d="M170 188 l-8 11 h7 l-3 9 9 -12 h-7 z" fill="#0d1117"/>
+
+  <!-- hub: the mock responder -->
+  <circle cx="128" cy="128" r="30" fill="url(#hub)" stroke="#0d1117" stroke-width="4"/>
+  <text x="128" y="139" text-anchor="middle"
+        font-family="SFMono-Regular, Menlo, Consolas, monospace"
+        font-size="30" font-weight="700" fill="#0d1117">{ }</text>
+</svg>
