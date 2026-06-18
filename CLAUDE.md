@@ -18,6 +18,15 @@ cargo run -- --spec tests/fixtures/petstore.yaml --validate   # parse + print ro
 
 CI (`.github/workflows/ci.yml`) runs fmt → clippy → test on ubuntu + macos.
 
+## Releases
+
+Fully automated via release-plz; never bump the version or tag by hand.
+
+- Conventional commits land on `main` → `release-plz.yml` opens/updates a release PR (version bump + `CHANGELOG.md`). Merging that PR publishes to crates.io and pushes tag `v{version}`.
+- The tag triggers `release.yml`, which builds 6 targets (Linux gnu/musl x86_64 + arm64, macOS x86_64/arm64, Windows x86_64), runs their tests, and attaches archives + a combined `SHA256SUMS` to a single GitHub Release. `release-plz.toml` sets `git_release_enable = false` so release-plz doesn't create a duplicate; the `publish` job uploads all artifacts at once (never let per-matrix release uploads back in — partial releases).
+- The crate name and binary name are both `mock-mesh`. The archive layout `mock-mesh-{version}-{target}/mock-mesh` is coupled between `release.yml` (Package step), `[package.metadata.binstall]` in Cargo.toml, and `install.sh` — change them together.
+- Secrets: `RELEASE_PLZ_TOKEN` (fine-grained PAT — the default `GITHUB_TOKEN` cannot push tags that trigger other workflows). crates.io auth uses trusted publishing (OIDC via `rust-lang/crates-io-auth-action`); there is no registry token to rotate.
+
 ## Architecture
 
 mock-mesh serves mocked APIs derived from an OpenAPI 3.0/3.1 spec, augmented by a behavior config (latency, rate limiting, error modes). No compiled routes: an axum `.fallback()` handler matches every request against a rule table at request time.
