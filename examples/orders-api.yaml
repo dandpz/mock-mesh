@@ -1,0 +1,126 @@
+openapi: 3.1.0
+info:
+  title: Orders API
+  version: 1.0.0
+  description: >
+    A small e-commerce-style API used by every example in this folder.
+    Some operations carry an `example` (served verbatim); others only have a
+    schema, so mock-mesh synthesizes plausible fake data from it.
+paths:
+  /orders:
+    get:
+      operationId: listOrders
+      summary: List orders (served from the spec example, verbatim)
+      responses:
+        '200':
+          description: a page of orders
+          content:
+            application/json:
+              example:
+                - id: 11111111-1111-1111-1111-111111111111
+                  customer_email: ada@example.com
+                  status: shipped
+                  total: 42.50
+                - id: 22222222-2222-2222-2222-222222222222
+                  customer_email: grace@example.com
+                  status: pending
+                  total: 9.99
+    post:
+      operationId: createOrder
+      summary: Create an order (no example — response is schema-synthesized)
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+  /orders/{orderId}:
+    get:
+      operationId: getOrder
+      summary: Fetch one order (schema-synthesized fake data)
+      responses:
+        '200':
+          description: an order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: not found
+    delete:
+      operationId: deleteOrder
+      summary: Delete an order
+      responses:
+        '204':
+          description: deleted
+  /payments:
+    post:
+      operationId: createPayment
+      summary: Charge a payment (used to demo slow / hanging upstreams)
+      responses:
+        '200':
+          description: charged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+  /health:
+    get:
+      operationId: health
+      responses:
+        default:
+          description: liveness probe
+          content:
+            application/json:
+              example:
+                status: ok
+components:
+  schemas:
+    Order:
+      type: object
+      required: [id, customer_email, status, total, created_at, items]
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer_email:
+          type: string
+          format: email
+        status:
+          type: string
+          enum: [pending, paid, shipped, delivered, cancelled]
+        total:
+          type: number
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineItem'
+    LineItem:
+      type: object
+      required: [sku, quantity]
+      properties:
+        sku:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 10
+    Payment:
+      type: object
+      required: [payment_id, order_id, amount, captured]
+      properties:
+        payment_id:
+          type: string
+          format: uuid
+        order_id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        captured:
+          type: boolean

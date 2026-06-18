@@ -62,6 +62,10 @@ curl localhost:8080/_mockmesh/routes      # what's loaded
 `mock-mesh --spec api.yaml --validate` parses everything, prints the route
 table, and exits — handy in CI.
 
+Runnable, feature-by-feature walkthroughs live in [`examples/`](examples) —
+quickstart, latency, errors, rate limiting, and runtime admin overrides, all
+over one shared spec.
+
 ## Configuration file
 
 The config file (JSON or YAML, `--config`) augments spec routes and can add

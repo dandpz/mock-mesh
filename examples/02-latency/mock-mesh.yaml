@@ -1,0 +1,21 @@
+# Latency simulation. A config layers onto the spec by matching method + path
+# *shape* — param names need not match (`/orders/{orderId}` ≡ `/orders/{id}`).
+
+# `defaults` apply to every route that doesn't set the field itself.
+defaults:
+  latency:
+    fixed_ms: 25          # baseline delay on every response
+    jitter_ms: 25         # plus a uniform random 0–25ms
+
+endpoints:
+  # A slow listing endpoint: 200ms baseline + up to 150ms jitter.
+  - path: /orders
+    method: GET
+    behavior:
+      latency: { fixed_ms: 200, jitter_ms: 150 }
+
+  # A consistently slow write path (no jitter).
+  - path: /payments
+    method: POST
+    behavior:
+      latency: { fixed_ms: 500 }

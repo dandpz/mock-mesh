@@ -1,0 +1,44 @@
+# Error-state simulation. Three kinds of error_mode:
+#   status — respond with a fixed HTTP error (optionally only a fraction)
+#   hang   — accept the request and never answer (bounded by max_secs)
+#   abort  — reset the TCP connection mid-request (client sees "reset by peer")
+
+defaults: {}
+
+endpoints:
+  # Always fail with 500 and a custom JSON body.
+  - path: /orders
+    method: POST
+    behavior:
+      error_mode:
+        kind: status
+        code: 500
+        body:
+          error: internal
+          message: simulated failure
+
+  # Fail 30% of the time with 503; the other 70% serve the normal mock.
+  # Great for testing client retry/backoff logic.
+  - path: /orders/{orderId}
+    method: GET
+    behavior:
+      error_mode:
+        kind: status
+        code: 503
+        probability: 0.3
+
+  # Black-hole: hold the connection open and never respond, capped at 5s.
+  # (Default cap is 120s if max_secs is omitted.)
+  - path: /payments
+    method: POST
+    behavior:
+      error_mode:
+        kind: hang
+        max_secs: 5
+
+  # Hard reset: the client's request dies with a connection error.
+  - path: /health
+    method: GET
+    behavior:
+      error_mode:
+        kind: abort

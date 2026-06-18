@@ -1,0 +1,36 @@
+# Rate-limit simulation. Two composable mechanisms:
+#   1. rps + burst        — a deterministic token bucket
+#   2. reject_probability — random rejection of requests that passed the bucket
+
+defaults: {}
+
+endpoints:
+  # Token bucket: refills 2 tokens/sec, holds at most 5. Burst of 5 succeeds
+  # immediately, then you're limited to ~2 req/sec. Over-limit → 429 with a
+  # Retry-After header.
+  - path: /orders
+    method: GET
+    behavior:
+      rate_limit:
+        rps: 2
+        burst: 5
+
+  # Unpredictable throttling: every request that passes the bucket still has a
+  # 25% chance of rejection — and rejection returns 429 here too. Use it to
+  # test retry logic against a flaky upstream.
+  - path: /orders/{orderId}
+    method: GET
+    behavior:
+      rate_limit:
+        rps: 100
+        burst: 100
+        reject_probability: 0.25
+
+  # Custom rejection status instead of the default 429.
+  - path: /payments
+    method: POST
+    behavior:
+      rate_limit:
+        rps: 1
+        burst: 1
+        response_status: 503
