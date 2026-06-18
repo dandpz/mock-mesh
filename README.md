@@ -21,11 +21,29 @@ mock-mesh --spec api.yaml --config mock-mesh.yaml --port 8080
 - **Admin API** under `/_mockmesh/` to inspect routes and flip simulations at
   runtime (scriptable from your test suites).
 
-## Install / build
+## Install
+
+The installed command is `mock-mesh`.
 
 ```sh
+# Prebuilt binary, checksum-verified (Linux/macOS):
+curl -fsSL https://raw.githubusercontent.com/dandpz/mock-mesh/main/install.sh | sh
+
+# Prebuilt binary via cargo-binstall:
+cargo binstall mock-mesh
+
+# From crates.io (builds from source):
+cargo install mock-mesh
+
+# From a local checkout:
+cargo install --path .
+
+# Or just build it:
 cargo build --release        # target/release/mock-mesh
 ```
+
+Windows users: download the `.zip` from the
+[releases page](https://github.com/dandpz/mock-mesh/releases).
 
 ## Quick start
 

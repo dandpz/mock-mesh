@@ -10,6 +10,21 @@ description = "High-throughput mock HTTP server driven by OpenAPI specs, with la
 keywords = ["mock", "openapi", "testing", "http", "chaos"]
 categories = ["command-line-utilities", "development-tools::testing"]
 
+[[bin]]
+name = "mock-mesh"
+path = "src/main.rs"
+
+# `cargo binstall mock-mesh` — must match the archive layout produced by the
+# Package step in .github/workflows/release.yml: an archive named
+# mock-mesh-<version>-<target> containing <that dir>/mock-mesh.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }{ archive-suffix }"
+bin-dir = "{ name }-{ version }-{ target }/{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
+
 [dependencies]
 arc-swap = "1.9"
 axum = "0.8"
