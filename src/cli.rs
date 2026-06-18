@@ -5,9 +5,14 @@ use std::path::PathBuf;
 #[derive(Debug, clap::Parser)]
 #[command(name = "mock-mesh", version, about)]
 pub struct Cli {
-    /// OpenAPI 3.0/3.1 spec file (JSON or YAML)
+    /// Optional subcommand. With none, mock-mesh runs the server (default).
+    #[command(subcommand)]
+    pub command: Option<Command>,
+
+    /// OpenAPI 3.0/3.1 spec file (JSON or YAML). Required to run the server
+    /// (i.e. when no subcommand is given).
     #[arg(long, short, value_name = "PATH")]
-    pub spec: PathBuf,
+    pub spec: Option<PathBuf>,
 
     /// mock-mesh behavior config file (JSON or YAML)
     #[arg(long, short, value_name = "PATH")]
@@ -54,4 +59,35 @@ pub struct Cli {
     /// Log filter, e.g. "info" or "mock_mesh=debug" (RUST_LOG also works)
     #[arg(long, default_value = "info")]
     pub log: String,
+}
+
+#[derive(Debug, clap::Subcommand)]
+pub enum Command {
+    /// Install or manage the bundled Claude Code skill.
+    Skill {
+        #[command(subcommand)]
+        action: SkillAction,
+    },
+}
+
+#[derive(Debug, clap::Subcommand)]
+pub enum SkillAction {
+    /// Write the mock-mesh skill into <dir>/.claude/skills/mock-mesh/, so an
+    /// AI coding agent can drive mock-mesh on its own.
+    Install(SkillInstallArgs),
+}
+
+#[derive(Debug, clap::Args)]
+pub struct SkillInstallArgs {
+    /// Repository root to install into (default: current directory)
+    #[arg(long, value_name = "PATH")]
+    pub dir: Option<PathBuf>,
+
+    /// Overwrite existing skill files
+    #[arg(long)]
+    pub force: bool,
+
+    /// Print the skill (SKILL.md) to stdout instead of writing any file
+    #[arg(long)]
+    pub print: bool,
 }

@@ -1,0 +1,18 @@
+# Starter behavior config for openapi.yaml. Each block shows one simulation
+# primitive. Matched to spec routes by method + path shape.
+defaults:
+  latency: { fixed_ms: 10, jitter_ms: 20 }   # baseline on every route
+
+endpoints:
+  # Slow + occasionally failing listing — exercises retry/backoff logic.
+  - path: /widgets
+    method: GET
+    behavior:
+      latency: { fixed_ms: 100, jitter_ms: 50 }
+      error_mode: { kind: status, code: 503, probability: 0.25 }
+
+  # Token-bucket rate limiting: 5 immediate, then ~2/sec, 429 + Retry-After.
+  - path: /widgets/{id}
+    method: GET
+    behavior:
+      rate_limit: { rps: 2, burst: 5 }

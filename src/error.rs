@@ -29,3 +29,17 @@ pub enum LoadError {
     #[error("invalid config: {0}")]
     Validation(String),
 }
+
+/// Errors raised while installing the bundled Claude Code skill
+/// (`mock-mesh skill install`).
+#[derive(Debug, thiserror::Error)]
+pub enum SkillError {
+    #[error("cannot write {path}: {source}")]
+    Io {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("{path} already exists; re-run with --force to overwrite")]
+    Exists { path: PathBuf },
+}

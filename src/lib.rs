@@ -11,6 +11,7 @@ pub mod openapi;
 pub mod rules;
 pub mod server;
 pub mod simulate;
+pub mod skill;
 pub mod state;
 pub mod watch;
 

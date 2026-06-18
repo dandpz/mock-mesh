@@ -3,11 +3,11 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use clap::Parser;
-use mock_mesh::cli::Cli;
+use mock_mesh::cli::{Cli, Command, SkillAction};
 use mock_mesh::loader::{self, LoadedPaths};
 use mock_mesh::rules::compile;
 use mock_mesh::state::AppState;
-use mock_mesh::{build_router, server, watch};
+use mock_mesh::{build_router, server, skill, watch};
 use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
 
@@ -15,13 +15,33 @@ use tracing_subscriber::EnvFilter;
 async fn main() -> ExitCode {
     let cli = Cli::parse();
 
+    match cli.command {
+        Some(Command::Skill {
+            action: SkillAction::Install(args),
+        }) => match skill::install(&args) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::FAILURE
+            }
+        },
+        None => run_server(cli).await,
+    }
+}
+
+async fn run_server(cli: Cli) -> ExitCode {
+    let Some(spec) = cli.spec.clone() else {
+        eprintln!("error: --spec is required to run the server");
+        return ExitCode::FAILURE;
+    };
+
     let filter = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new(&cli.log))
         .unwrap_or_else(|_| EnvFilter::new("info"));
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
     let paths = LoadedPaths {
-        spec: cli.spec.clone(),
+        spec,
         config: cli.config.clone(),
     };
 

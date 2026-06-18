@@ -14,9 +14,18 @@ cargo clippy --all-targets -- -D warnings   # CI gate
 cargo fmt --check                           # CI gate
 cargo run -- --spec tests/fixtures/petstore.yaml --config tests/fixtures/config-chaos.yaml
 cargo run -- --spec tests/fixtures/petstore.yaml --validate   # parse + print route table, exit
+cargo run -- skill install --dir /tmp/x --force               # write the bundled Claude Code skill
 ```
 
 CI (`.github/workflows/ci.yml`) runs fmt → clippy → test on ubuntu + macos.
+
+The CLI has an optional subcommand (`cli.rs`): no subcommand → run the server
+(`run_server` in `main.rs`; `--spec` is `Option` and guarded there, required
+only for server mode). `skill install` writes `.claude/skills/mock-mesh/`
+(SKILL.md + a starter spec/config) from content embedded via `include_str!`
+out of `assets/skill/` (so installed binaries carry it; `assets/skill/` must
+ship in the crate — see `cargo package --list`). `src/skill.rs` owns this;
+errors use `SkillError` in `error.rs`, kept separate from `LoadError`.
 
 ## Releases
 
