@@ -189,11 +189,30 @@ the route id) — ideal for snapshot tests. Chaos decisions (probabilistic
 errors, jitter, random rejections) intentionally stay random even when
 seeded; a "10% errors" endpoint that always or never failed would be useless.
 
+## Use it from an AI agent
+
+mock-mesh ships a [Claude Code](https://claude.com/claude-code) skill so an
+agent can drive it on its own — stand up a mock from a spec, hit endpoints,
+inject faults via the admin API, tear down. Install it into the repo you're
+working in:
+
+```sh
+mock-mesh skill install            # writes .claude/skills/mock-mesh/ (SKILL.md + a starter spec/config)
+mock-mesh skill install --print    # preview SKILL.md without writing
+mock-mesh skill install --force    # overwrite an existing copy
+```
+
+Reload Claude Code afterwards; the skill is auto-discovered. Then ask it to,
+e.g., "mock this API and make the orders endpoint return 503."
+
 ## CLI reference
+
+Running with no subcommand starts the server (the flags below). `mock-mesh
+skill install` installs the agent skill instead.
 
 | Flag | Default | |
 |---|---|---|
-| `--spec <PATH>` | required | OpenAPI 3.0/3.1 file (JSON/YAML) |
+| `--spec <PATH>` | required (server) | OpenAPI 3.0/3.1 file (JSON/YAML) |
 | `--config <PATH>` | – | behavior config |
 | `--host` | `127.0.0.1` | bind address |
 | `--port`, `-p` | `8080` | bind port (0 = pick free) |

@@ -1,0 +1,66 @@
+openapi: 3.1.0
+info:
+  title: Starter API
+  version: 1.0.0
+  description: >
+    A tiny spec bundled with the mock-mesh skill so an agent has something to
+    mock immediately. Replace it with the real spec under test.
+paths:
+  /widgets:
+    get:
+      operationId: listWidgets
+      responses:
+        '200':
+          description: a list of widgets (served verbatim from this example)
+          content:
+            application/json:
+              example:
+                - id: 1
+                  name: sprocket
+                - id: 2
+                  name: cog
+    post:
+      operationId: createWidget
+      responses:
+        '201':
+          description: created (schema-synthesized fake data)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Widget'
+  /widgets/{widgetId}:
+    get:
+      operationId: getWidget
+      responses:
+        '200':
+          description: one widget (schema-synthesized fake data)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Widget'
+        '404':
+          description: not found
+  /health:
+    get:
+      operationId: health
+      responses:
+        default:
+          description: liveness probe
+          content:
+            application/json:
+              example:
+                status: ok
+components:
+  schemas:
+    Widget:
+      type: object
+      required: [id, name, created_at]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
