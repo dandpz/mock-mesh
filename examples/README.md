@@ -13,6 +13,7 @@ Work through them in order:
 | 03 | [errors](03-errors) | `error_mode`: forced/probabilistic status, `hang`, `abort` |
 | 04 | [rate-limiting](04-rate-limiting) | Token bucket (`rps`/`burst`), `reject_probability`, custom status |
 | 05 | [admin-overrides](05-admin-overrides) | Flip behavior at runtime via the `/_mockmesh` admin API |
+| 06 | [attachments](06-attachments) | Serve files & binary bodies: `body_file`, `body_base64`, `content_type`, `filename` |
 
 ## Prerequisites
 

@@ -1,0 +1,27 @@
+# Attachments — serve files and binary payloads as mock responses.
+# Run from this directory so the relative `body_file` paths resolve.
+endpoints:
+  # PDF invoice for an order. Config-only route (not in the spec).
+  # Content-Type is guessed from the .pdf extension; `filename` makes the
+  # browser download it as an attachment.
+  - path: /orders/{orderId}/invoice
+    method: GET
+    response:
+      body_file: invoice.pdf
+      filename: invoice.pdf
+
+  # CSV export of all orders. Content-Type guessed from .csv
+  # (text/csv; charset=utf-8). No filename -> served inline.
+  - path: /orders/export.csv
+    method: GET
+    response:
+      body_file: orders.csv
+
+  # Inline binary with no file on disk: a 1x1 PNG embedded as base64.
+  # `content_type` is set explicitly (base64 bodies default to
+  # application/octet-stream).
+  - path: /brand/logo.png
+    method: GET
+    response:
+      content_type: image/png
+      body_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8AAAAASUVORK5CYII="
