@@ -201,10 +201,23 @@ pub struct FixedResponse {
     pub status: u16,
     #[serde(default)]
     pub headers: BTreeMap<String, String>,
-    /// JSON body. Mutually exclusive with `body_text`.
+    /// JSON body. At most one `body*` field may be set.
     pub body: Option<serde_json::Value>,
-    /// Raw text body, served as text/plain.
+    /// Raw text body, served as text/plain by default.
     pub body_text: Option<String>,
+    /// Base64-encoded binary body — for attachments and other non-text
+    /// payloads inlined directly in the config. Served as
+    /// application/octet-stream by default.
+    pub body_base64: Option<String>,
+    /// Path (relative to the working directory) of a file whose bytes form
+    /// the body. Read once at load time. Content-Type is guessed from the
+    /// extension unless `content_type` is set.
+    pub body_file: Option<String>,
+    /// Explicit Content-Type, overriding the default chosen for the body kind.
+    pub content_type: Option<String>,
+    /// When set, adds `Content-Disposition: attachment; filename="..."` so
+    /// clients treat the response as a downloadable attachment.
+    pub filename: Option<String>,
 }
 
 fn default_ok_status() -> u16 {

@@ -1,0 +1,4 @@
+order_id,customer,total,status
+ord_001,Ada Lovelace,42.00,shipped
+ord_002,Alan Turing,17.50,pending
+ord_003,Grace Hopper,99.99,delivered

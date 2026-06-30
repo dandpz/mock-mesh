@@ -1,0 +1,28 @@
+endpoints:
+  # Inline base64 binary; explicit content_type + attachment filename.
+  - path: /download/inline
+    method: GET
+    response:
+      content_type: application/octet-stream
+      body_base64: "QklOQVJZAAEC/w=="
+      filename: blob.bin
+
+  # File body, Content-Type guessed from the .pdf extension.
+  - path: /reports/{id}/download
+    method: GET
+    response:
+      body_file: tests/fixtures/sample.pdf
+      filename: report.pdf
+
+  # File body, Content-Type guessed from the .csv extension.
+  - path: /export.csv
+    method: GET
+    response:
+      body_file: tests/fixtures/sample.csv
+
+  # Explicit content_type overrides the extension guess.
+  - path: /raw
+    method: GET
+    response:
+      body_file: tests/fixtures/sample.bin
+      content_type: image/png
