@@ -105,6 +105,21 @@ endpoints:
       headers: { x-mock: "true" }
       body: { dark_mode: true }
 
+  # Serve a file as a downloadable attachment (Content-Type guessed from the
+  # extension; `filename` sets Content-Disposition: attachment)
+  - path: /reports/{id}/download
+    method: GET
+    response:
+      body_file: ./fixtures/sample.pdf   # path relative to the working dir
+      filename: report.pdf
+
+  # Inline binary body without a file (base64), with an explicit Content-Type
+  - path: /avatar
+    method: GET
+    response:
+      content_type: image/png
+      body_base64: "iVBORw0KGgo..."
+
   # Accept the request and never answer (bounded at max_secs, default 120)
   - path: /payments
     method: POST

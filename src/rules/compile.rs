@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use bytes::Bytes;
+use http::header::CONTENT_DISPOSITION;
 use http::{HeaderName, HeaderValue, Method, StatusCode};
 
 use crate::config::model::{EndpointRule, FixedResponse, MethodMatch};
@@ -237,25 +238,141 @@ fn plan_from_fixed(fixed: &FixedResponse, context: &str) -> Result<ResponsePlan,
         })?;
         headers.push((name, value));
     }
-    let (body, content_type) = match (&fixed.body, &fixed.body_text) {
-        (Some(json), _) => (
-            Bytes::from(serde_json::to_vec(json).map_err(|e| {
-                LoadError::Validation(format!("{context}: unserializable body: {e}"))
-            })?),
-            HeaderValue::from_static("application/json"),
-        ),
-        (None, Some(text)) => (
-            Bytes::from(text.clone().into_bytes()),
-            HeaderValue::from_static("text/plain; charset=utf-8"),
-        ),
-        (None, None) => (Bytes::new(), HeaderValue::from_static("application/json")),
+    let (body, default_ct) = body_bytes(fixed, context)?;
+
+    // Explicit content_type wins over the per-body-kind default.
+    let content_type = match &fixed.content_type {
+        Some(ct) => HeaderValue::from_str(ct)
+            .map_err(|_| LoadError::Validation(format!("{context}: invalid content_type {ct}")))?,
+        None => default_ct,
     };
+
+    // `filename` is sugar for a Content-Disposition attachment header. Don't
+    // clobber one the user set explicitly.
+    if let Some(name) = &fixed.filename {
+        let already = headers.iter().any(|(n, _)| n == CONTENT_DISPOSITION);
+        if !already {
+            let escaped = name.replace('\\', "\\\\").replace('"', "\\\"");
+            let value = format!("attachment; filename=\"{escaped}\"");
+            let value = HeaderValue::from_str(&value).map_err(|_| {
+                LoadError::Validation(format!("{context}: invalid filename {name}"))
+            })?;
+            headers.push((CONTENT_DISPOSITION, value));
+        }
+    }
+
     Ok(ResponsePlan::Fixed {
         status,
         headers,
         body,
         content_type,
     })
+}
+
+/// Resolve a fixed response's body source to bytes plus a default
+/// Content-Type. At most one `body*` field may be set.
+fn body_bytes(fixed: &FixedResponse, context: &str) -> Result<(Bytes, HeaderValue), LoadError> {
+    let set = [
+        fixed.body.is_some(),
+        fixed.body_text.is_some(),
+        fixed.body_base64.is_some(),
+        fixed.body_file.is_some(),
+    ]
+    .into_iter()
+    .filter(|b| *b)
+    .count();
+    if set > 1 {
+        return Err(LoadError::Validation(format!(
+            "{context}: response may set at most one of body, body_text, body_base64, body_file"
+        )));
+    }
+
+    if let Some(json) = &fixed.body {
+        return Ok((
+            Bytes::from(serde_json::to_vec(json).map_err(|e| {
+                LoadError::Validation(format!("{context}: unserializable body: {e}"))
+            })?),
+            HeaderValue::from_static("application/json"),
+        ));
+    }
+    if let Some(text) = &fixed.body_text {
+        return Ok((
+            Bytes::from(text.clone().into_bytes()),
+            HeaderValue::from_static("text/plain; charset=utf-8"),
+        ));
+    }
+    if let Some(b64) = &fixed.body_base64 {
+        let bytes = decode_base64(b64)
+            .map_err(|e| LoadError::Validation(format!("{context}: invalid body_base64: {e}")))?;
+        return Ok((
+            Bytes::from(bytes),
+            HeaderValue::from_static("application/octet-stream"),
+        ));
+    }
+    if let Some(path) = &fixed.body_file {
+        let bytes = std::fs::read(path).map_err(|e| {
+            LoadError::Validation(format!("{context}: cannot read body_file {path}: {e}"))
+        })?;
+        return Ok((Bytes::from(bytes), guess_content_type(path)));
+    }
+    Ok((Bytes::new(), HeaderValue::from_static("application/json")))
+}
+
+/// Best-effort Content-Type from a file extension; octet-stream otherwise.
+fn guess_content_type(path: &str) -> HeaderValue {
+    let ext = std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase);
+    let ct = match ext.as_deref() {
+        Some("json") => "application/json",
+        Some("pdf") => "application/pdf",
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("svg") => "image/svg+xml",
+        Some("webp") => "image/webp",
+        Some("csv") => "text/csv; charset=utf-8",
+        Some("txt") => "text/plain; charset=utf-8",
+        Some("html" | "htm") => "text/html; charset=utf-8",
+        Some("xml") => "application/xml",
+        Some("zip") => "application/zip",
+        Some("gz") => "application/gzip",
+        Some("wasm") => "application/wasm",
+        _ => "application/octet-stream",
+    };
+    HeaderValue::from_static(ct)
+}
+
+/// Minimal standard-alphabet base64 decoder. Skips ASCII whitespace (YAML
+/// block scalars wrap lines) and padding; no extra dependency.
+fn decode_base64(s: &str) -> Result<Vec<u8>, String> {
+    fn val(c: u8) -> Option<u8> {
+        match c {
+            b'A'..=b'Z' => Some(c - b'A'),
+            b'a'..=b'z' => Some(c - b'a' + 26),
+            b'0'..=b'9' => Some(c - b'0' + 52),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            _ => None,
+        }
+    }
+    let mut out = Vec::with_capacity(s.len() / 4 * 3);
+    let mut buf = 0u32;
+    let mut bits = 0u8;
+    for &c in s.as_bytes() {
+        if c == b'=' || c.is_ascii_whitespace() {
+            continue;
+        }
+        let v = val(c).ok_or_else(|| format!("invalid base64 character {:?}", c as char))?;
+        buf = (buf << 6) | u32::from(v);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((buf >> bits) as u8);
+        }
+    }
+    Ok(out)
 }
 
 fn plan_from_operation(
@@ -410,5 +527,117 @@ mod tests {
         assert!(score_status_key("2XX").unwrap() < score_status_key("default").unwrap());
         assert!(score_status_key("default").unwrap() < score_status_key("404").unwrap());
         assert!(score_status_key("bogus").is_none());
+    }
+
+    #[test]
+    fn base64_roundtrip_and_whitespace() {
+        assert_eq!(decode_base64("TWFu").unwrap(), b"Man");
+        assert_eq!(decode_base64("TWE=").unwrap(), b"Ma");
+        assert_eq!(decode_base64("TQ==").unwrap(), b"M");
+        // wrapped block scalar with newlines decodes the same
+        assert_eq!(decode_base64("TW\nFu\n").unwrap(), b"Man");
+        assert!(decode_base64("not base64!").is_err());
+    }
+
+    #[test]
+    fn content_type_guessed_from_extension() {
+        assert_eq!(guess_content_type("report.pdf"), "application/pdf");
+        assert_eq!(guess_content_type("a/b/avatar.PNG"), "image/png");
+        assert_eq!(guess_content_type("data"), "application/octet-stream");
+        assert_eq!(guess_content_type("archive.tar.gz"), "application/gzip");
+    }
+
+    fn fixed() -> FixedResponse {
+        FixedResponse {
+            status: 200,
+            headers: Default::default(),
+            body: None,
+            body_text: None,
+            body_base64: None,
+            body_file: None,
+            content_type: None,
+            filename: None,
+        }
+    }
+
+    #[test]
+    fn base64_body_defaults_to_octet_stream() {
+        let f = FixedResponse {
+            body_base64: Some("TWFu".into()),
+            ..fixed()
+        };
+        let ResponsePlan::Fixed {
+            body, content_type, ..
+        } = plan_from_fixed(&f, "ctx").unwrap()
+        else {
+            panic!("expected Fixed plan");
+        };
+        assert_eq!(&body[..], b"Man");
+        assert_eq!(content_type, "application/octet-stream");
+    }
+
+    #[test]
+    fn filename_sets_content_disposition_and_content_type_override() {
+        let f = FixedResponse {
+            body_base64: Some("TWFu".into()),
+            content_type: Some("application/pdf".into()),
+            filename: Some("the report.pdf".into()),
+            ..fixed()
+        };
+        let ResponsePlan::Fixed {
+            headers,
+            content_type,
+            ..
+        } = plan_from_fixed(&f, "ctx").unwrap()
+        else {
+            panic!("expected Fixed plan");
+        };
+        assert_eq!(content_type, "application/pdf");
+        let cd = headers
+            .iter()
+            .find(|(n, _)| n == CONTENT_DISPOSITION)
+            .map(|(_, v)| v.to_str().unwrap())
+            .unwrap();
+        assert_eq!(cd, "attachment; filename=\"the report.pdf\"");
+    }
+
+    #[test]
+    fn explicit_content_disposition_not_clobbered() {
+        let mut headers = std::collections::BTreeMap::new();
+        headers.insert("content-disposition".to_string(), "inline".to_string());
+        let f = FixedResponse {
+            body_text: Some("hi".into()),
+            headers,
+            filename: Some("x.txt".into()),
+            ..fixed()
+        };
+        let ResponsePlan::Fixed { headers, .. } = plan_from_fixed(&f, "ctx").unwrap() else {
+            panic!("expected Fixed plan");
+        };
+        let cds: Vec<_> = headers
+            .iter()
+            .filter(|(n, _)| n == CONTENT_DISPOSITION)
+            .collect();
+        assert_eq!(cds.len(), 1);
+        assert_eq!(cds[0].1, "inline");
+    }
+
+    #[test]
+    fn multiple_body_sources_rejected() {
+        let f = FixedResponse {
+            body_text: Some("hi".into()),
+            body_base64: Some("TWFu".into()),
+            ..fixed()
+        };
+        assert!(plan_from_fixed(&f, "ctx").is_err());
+    }
+
+    #[test]
+    fn missing_body_file_errors() {
+        let f = FixedResponse {
+            body_file: Some("/no/such/file/here.pdf".into()),
+            ..fixed()
+        };
+        assert!(plan_from_fixed(&f, "ctx").is_err());
     }
 }
