@@ -153,6 +153,7 @@ fn build_response(rule: &MockRule, state: &AppState) -> Response<Body> {
                 None => SmallRng::from_rng(&mut rand::rng()),
             };
             let mut ctx = GenCtx::new(rng, root);
+            ctx.root_array_len = rule.behavior.array_length.map(|s| s.bounds());
             let value = crate::fake::generate(schema, &mut ctx);
             let body = serde_json::to_vec(&value).unwrap_or_else(|_| b"null".to_vec());
             Response::builder()

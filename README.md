@@ -92,6 +92,12 @@ endpoints:
         probability: 0.10       # omit = always
         body: { error: "internal" }
 
+  # Size generated list responses (schema-derived bodies only)
+  - path: /orders
+    method: GET
+    behavior:
+      array_length: 100         # or { min: 10, max: 20 }
+
   # Replace the spec-derived response entirely
   - path: /users/{id}
     method: DELETE
@@ -154,6 +160,17 @@ For each operation mock-mesh picks the lowest 2xx response, else `default`
 range floor. Content negotiation prefers `application/json`, then any
 `*+json`, then the first media type.
 
+### Array length
+
+`array_length` (fixed `100` or range `{ min: 10, max: 20 }`, cap 10 000) sets
+the length of a schema-generated response's **root array**, overriding the
+schema's `minItems`/`maxItems`. It reaches the root array through
+`$ref`/`oneOf`/`anyOf` indirection, but arrays nested inside objects keep
+their schema bounds (so a large length can't explode recursively). It has no
+effect on spec `example`s or fixed `response:` bodies — those are served
+verbatim. Works in `defaults:` too, e.g. keep every generated list small
+globally.
+
 ## Hot reload
 
 Both files are watched (parent-directory watch, so editor rename-saves and
@@ -200,7 +217,9 @@ curl -X DELETE localhost:8080/_mockmesh/routes/$KEY/overrides
 
 `--seed <u64>` makes schema-synthesized bodies **byte-identical** per
 endpoint across requests *and* restarts (the RNG is derived from the seed and
-the route id) — ideal for snapshot tests. Chaos decisions (probabilistic
+the route id) — ideal for snapshot tests. This includes `array_length`: a
+fixed length keeps bodies identical, and a `{ min, max }` range picks the
+same length every time under a given seed. Chaos decisions (probabilistic
 errors, jitter, random rejections) intentionally stay random even when
 seeded; a "10% errors" endpoint that always or never failed would be useless.
 

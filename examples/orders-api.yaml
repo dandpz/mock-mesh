@@ -54,6 +54,21 @@ paths:
       responses:
         '204':
           description: deleted
+  /products:
+    get:
+      operationId: listProducts
+      summary: List products (no example — root array is schema-synthesized)
+      responses:
+        '200':
+          description: a list of products
+          content:
+            application/json:
+              schema:
+                type: array
+                minItems: 2
+                maxItems: 3
+                items:
+                  $ref: '#/components/schemas/Product'
   /payments:
     post:
       operationId: createPayment
@@ -110,6 +125,17 @@ components:
           type: integer
           minimum: 1
           maximum: 10
+    Product:
+      type: object
+      required: [sku, name, price]
+      properties:
+        sku:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+          minimum: 0
     Payment:
       type: object
       required: [payment_id, order_id, amount, captured]

@@ -54,6 +54,18 @@ pub fn build_table(docs: &LoadedDocs, prev: Option<&MockTable>) -> Result<MockTa
                 }
             };
 
+            // array_length only affects schema-generated bodies; defaults may
+            // blanket-apply, but an endpoint-level setting that can't take
+            // effect deserves a heads-up.
+            if config_ep.is_some_and(|(_, ep)| ep.behavior.array_length.is_some())
+                && !matches!(plan, ResponsePlan::Schema { .. })
+            {
+                tracing::warn!(
+                    route = %shape_key,
+                    "array_length has no effect: response is a fixed/example/empty body, not schema-generated"
+                );
+            }
+
             let behavior = config_ep
                 .map(|(_, ep)| ep.behavior.clone())
                 .unwrap_or_default()

@@ -19,6 +19,12 @@ const MAX_EAGER_PROPS: usize = 8;
 pub struct GenCtx<'a> {
     pub rng: SmallRng,
     pub resolver: RefResolver<'a>,
+    /// Config override for the length of the response's *root* array as
+    /// `(min, max)`, replacing the schema's `minItems`/`maxItems`. It reaches
+    /// the root array through `$ref`/`oneOf`/`anyOf`/`allOf` indirection but
+    /// is cleared on entering an object, so nested arrays keep schema bounds.
+    /// `example`/`default`/`enum` still short-circuit generation entirely.
+    pub root_array_len: Option<(usize, usize)>,
     depth: u8,
     ref_stack: Vec<String>,
 }
@@ -28,6 +34,7 @@ impl<'a> GenCtx<'a> {
         Self {
             rng,
             resolver: RefResolver::new(root),
+            root_array_len: None,
             depth: 0,
             ref_stack: Vec::new(),
         }
@@ -157,12 +164,20 @@ fn gen_number(schema: &Schema, rng: &mut SmallRng) -> Value {
 }
 
 fn gen_array(schema: &Schema, ctx: &mut GenCtx<'_>) -> Value {
-    let min = schema.min_items.unwrap_or(2);
-    let max = schema.max_items.unwrap_or(min.max(2)).max(min);
-    let len = if min < max {
-        ctx.rng.random_range(min..=max.min(min + 4))
-    } else {
-        min
+    // `.take()` before the itemless early-return: this *is* the root array,
+    // so the override must not leak to a later sibling array either way.
+    let len = match ctx.root_array_len.take() {
+        Some((min, max)) if min < max => ctx.rng.random_range(min..=max),
+        Some((min, _)) => min,
+        None => {
+            let min = schema.min_items.unwrap_or(2);
+            let max = schema.max_items.unwrap_or(min.max(2)).max(min);
+            if min < max {
+                ctx.rng.random_range(min..=max.min(min + 4))
+            } else {
+                min
+            }
+        }
     };
     let Some(items) = &schema.items else {
         return Value::Array(Vec::new());
@@ -171,6 +186,8 @@ fn gen_array(schema: &Schema, ctx: &mut GenCtx<'_>) -> Value {
 }
 
 fn gen_object(schema: &Schema, ctx: &mut GenCtx<'_>) -> Value {
+    // Arrays inside objects are not the root array.
+    ctx.root_array_len = None;
     let Some(props) = &schema.properties else {
         return Value::Object(Map::new());
     };
@@ -306,5 +323,95 @@ mod tests {
         let root = json!({});
         let v = gen_from(json!({ "type": ["string", "null"] }), &root, 5);
         assert!(v.is_string() || v.is_null());
+    }
+
+    fn gen_with_len(schema_json: Value, root: &Value, seed: u64, len: (usize, usize)) -> Value {
+        let schema: Schema = serde_json::from_value(schema_json).unwrap();
+        let mut ctx = GenCtx::new(SmallRng::seed_from_u64(seed), root);
+        ctx.root_array_len = Some(len);
+        generate(&schema, &mut ctx)
+    }
+
+    #[test]
+    fn array_len_override_beats_schema_bounds() {
+        let root = json!({});
+        let v = gen_with_len(
+            json!({ "type": "array", "minItems": 2, "maxItems": 3,
+                    "items": { "type": "integer" } }),
+            &root,
+            1,
+            (100, 100),
+        );
+        assert_eq!(v.as_array().unwrap().len(), 100);
+    }
+
+    #[test]
+    fn array_len_range_and_zero() {
+        let root = json!({});
+        let schema = json!({ "type": "array", "items": { "type": "integer" } });
+        let mut above_window = false;
+        for seed in 0..50 {
+            let v = gen_with_len(schema.clone(), &root, seed, (10, 20));
+            let len = v.as_array().unwrap().len();
+            assert!((10..=20).contains(&len));
+            // Lengths beyond the default min+4 window must be reachable.
+            above_window = above_window || len > 14;
+        }
+        assert!(above_window);
+        let v = gen_with_len(schema, &root, 1, (0, 0));
+        assert_eq!(v.as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn array_len_applies_through_one_of_and_ref() {
+        // Top-level media `$ref`s are resolved at compile time, so ref
+        // indirection to the root array only occurs inside combinators.
+        let root = json!({
+            "components": { "schemas": { "List": {
+                "type": "array", "maxItems": 3, "items": { "type": "integer" }
+            } } }
+        });
+        let v = gen_with_len(
+            json!({ "oneOf": [ { "$ref": "#/components/schemas/List" } ] }),
+            &root,
+            1,
+            (7, 7),
+        );
+        assert_eq!(v.as_array().unwrap().len(), 7);
+    }
+
+    #[test]
+    fn array_len_skips_arrays_inside_objects() {
+        let root = json!({});
+        let v = gen_with_len(
+            json!({ "type": "object", "required": ["tags"], "properties": {
+                "tags": { "type": "array", "minItems": 2, "maxItems": 3,
+                          "items": { "type": "string" } }
+            } }),
+            &root,
+            1,
+            (100, 100),
+        );
+        let tags = v.get("tags").unwrap().as_array().unwrap();
+        assert!((2..=3).contains(&tags.len()));
+    }
+
+    #[test]
+    fn array_len_outer_array_only() {
+        let root = json!({});
+        let v = gen_with_len(
+            json!({ "type": "array", "items": {
+                "type": "array", "minItems": 1, "maxItems": 2,
+                "items": { "type": "integer" }
+            } }),
+            &root,
+            1,
+            (6, 6),
+        );
+        let outer = v.as_array().unwrap();
+        assert_eq!(outer.len(), 6);
+        for inner in outer {
+            assert!((1..=2).contains(&inner.as_array().unwrap().len()));
+        }
     }
 }
