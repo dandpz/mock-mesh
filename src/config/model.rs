@@ -115,7 +115,8 @@ impl ArrayLengthSpec {
 }
 
 /// Beyond this, generated bodies get large enough to look like an accident.
-const MAX_ARRAY_LENGTH: usize = 10_000;
+/// Config values above it are rejected; client-requested sizes clamp to it.
+pub const MAX_ARRAY_LENGTH: usize = 10_000;
 
 impl Behavior {
     /// Fill unset fields from `defaults`.

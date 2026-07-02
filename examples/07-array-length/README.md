@@ -32,3 +32,35 @@ curl -s localhost:8080/orders | jq length
   the whole API while developing.
 - Composes with `--seed`: a fixed length keeps bodies byte-identical; a range
   picks the same length every run.
+
+## Client-driven sizing and pagination
+
+The spec declares `size` and `page` query parameters on `GET /products`, so
+clients can control the list per request — no config needed (it works even
+without `mock-mesh.yaml`):
+
+```sh
+# exactly 100 products — a spec-declared size param beats array_length
+curl -s 'localhost:8080/products?size=100' | jq length
+
+# unparsable values are ignored (config's 25 applies), huge ones clamp to
+# 10000 — client input never causes a 400
+curl -s 'localhost:8080/products?size=nope' | jq length
+```
+
+Restart with `--seed` and pages become stable *and* distinct — enough to test
+a client's pagination loop:
+
+```sh
+mock-mesh --spec ../orders-api.yaml --config mock-mesh.yaml --seed 42
+```
+
+```sh
+curl -s 'localhost:8080/products?size=5&page=1'   # byte-identical every time
+curl -s 'localhost:8080/products?size=5&page=2'   # different, also stable
+```
+
+Recognized size params (first declared wins, in this priority): `size`,
+`limit`, `per_page`, `page_size`, `pageSize`; pagination: `page`. Only
+parameters the spec **declares** are honored — mock-mesh never sniffs the raw
+query string.

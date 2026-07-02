@@ -14,7 +14,7 @@ Work through them in order:
 | 04 | [rate-limiting](04-rate-limiting) | Token bucket (`rps`/`burst`), `reject_probability`, custom status |
 | 05 | [admin-overrides](05-admin-overrides) | Flip behavior at runtime via the `/_mockmesh` admin API |
 | 06 | [attachments](06-attachments) | Serve files & binary bodies: `body_file`, `body_base64`, `content_type`, `filename` |
-| 07 | [array-length](07-array-length) | Size schema-generated list responses with `array_length` |
+| 07 | [array-length](07-array-length) | Size schema-generated list responses: `array_length`, client-driven `?size=`/`?page=` |
 
 ## Prerequisites
 

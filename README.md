@@ -171,6 +171,21 @@ effect on spec `example`s or fixed `response:` bodies — those are served
 verbatim. Works in `defaults:` too, e.g. keep every generated list small
 globally.
 
+### Client-driven sizing and pagination
+
+If an operation **declares** a query parameter named `size`, `limit`,
+`per_page`, `page_size` or `pageSize` (in that priority), the client can size
+the root array per request: `GET /orders?size=100` returns exactly 100 items,
+beating any configured `array_length`. Only spec-declared parameters are
+honored — the query string is never sniffed — and client values are forgiving:
+unparsable ones are ignored (config/schema applies), oversized ones clamp to
+10 000, never a 400.
+
+A declared `page` parameter folds into the seeded RNG, so with `--seed` each
+page returns different-but-stable content: `?page=1` is byte-identical across
+requests and restarts, and differs from `?page=2` — enough to test client
+pagination loops against a mock.
+
 ## Hot reload
 
 Both files are watched (parent-directory watch, so editor rename-saves and
@@ -217,7 +232,8 @@ curl -X DELETE localhost:8080/_mockmesh/routes/$KEY/overrides
 
 `--seed <u64>` makes schema-synthesized bodies **byte-identical** per
 endpoint across requests *and* restarts (the RNG is derived from the seed and
-the route id) — ideal for snapshot tests. This includes `array_length`: a
+the route id, plus the value of a declared `page` param when the client sends
+one) — ideal for snapshot tests. This includes `array_length`: a
 fixed length keeps bodies identical, and a `{ min, max }` range picks the
 same length every time under a given seed. Chaos decisions (probabilistic
 errors, jitter, random rejections) intentionally stay random even when

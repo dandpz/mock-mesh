@@ -13,7 +13,7 @@ use bytes::Bytes;
 use rand::rngs::SmallRng;
 use rand::{RngExt, SeedableRng};
 
-use crate::config::model::RateLimitSpec;
+use crate::config::model::{MAX_ARRAY_LENGTH, RateLimitSpec};
 use crate::fake::GenCtx;
 use crate::rules::{MockRule, ResponsePlan, fnv1a64, matcher};
 use crate::server::ConnKiller;
@@ -110,10 +110,20 @@ pub async fn handle(State(state): State<AppState>, req: Request<Body>) -> Respon
     }
 
     // 4. Body.
-    build_response(rule, &state)
+    build_response(rule, &state, req.uri().query())
 }
 
-fn build_response(rule: &MockRule, state: &AppState) -> Response<Body> {
+/// First value of `name` in a raw query string. No percent-decoding — the
+/// values consumed here are plain integers.
+fn query_param<'a>(query: &'a str, name: &str) -> Option<&'a str> {
+    query.split('&').find_map(|pair| {
+        pair.split_once('=')
+            .filter(|(k, _)| *k == name)
+            .map(|(_, v)| v)
+    })
+}
+
+fn build_response(rule: &MockRule, state: &AppState, query: Option<&str>) -> Response<Body> {
     match &rule.plan {
         ResponsePlan::Fixed {
             status,
@@ -145,15 +155,37 @@ fn build_response(rule: &MockRule, state: &AppState) -> Response<Body> {
             status,
             schema,
             root,
+            size_param,
+            page_param,
         } => {
+            let param = |name: &Option<String>| {
+                name.as_deref()
+                    .zip(query)
+                    .and_then(|(name, q)| query_param(q, name))
+            };
             // Seeded runs derive the RNG from (seed, rule id): identical
-            // bodies per endpoint across requests and restarts.
+            // bodies per endpoint across requests and restarts. A declared
+            // page param folds in, so each page differs — deterministically.
             let rng = match state.0.seed {
-                Some(seed) => SmallRng::seed_from_u64(seed ^ fnv1a64(rule.id.as_bytes())),
+                Some(seed) => {
+                    let mut derived = seed ^ fnv1a64(rule.id.as_bytes());
+                    if let Some(page) = param(page_param) {
+                        derived ^= fnv1a64(page.as_bytes());
+                    }
+                    SmallRng::seed_from_u64(derived)
+                }
                 None => SmallRng::from_rng(&mut rand::rng()),
             };
             let mut ctx = GenCtx::new(rng, root);
-            ctx.root_array_len = rule.behavior.array_length.map(|s| s.bounds());
+            // Client-requested size (spec-declared param) beats the config.
+            // Unparsable values are ignored and huge ones clamped — client
+            // input never turns into a 400 here.
+            let client_len = param(size_param)
+                .and_then(|v| v.parse::<usize>().ok())
+                .map(|n| n.min(MAX_ARRAY_LENGTH));
+            ctx.root_array_len = client_len
+                .map(|n| (n, n))
+                .or_else(|| rule.behavior.array_length.map(|s| s.bounds()));
             let value = crate::fake::generate(schema, &mut ctx);
             let body = serde_json::to_vec(&value).unwrap_or_else(|_| b"null".to_vec());
             Response::builder()

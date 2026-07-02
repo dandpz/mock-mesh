@@ -58,6 +58,13 @@ paths:
     get:
       operationId: listProducts
       summary: List products (no example — root array is schema-synthesized)
+      parameters:
+        - name: size
+          in: query
+          schema: { type: integer }
+        - name: page
+          in: query
+          schema: { type: integer }
       responses:
         '200':
           description: a list of products
