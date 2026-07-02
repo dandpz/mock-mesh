@@ -14,6 +14,7 @@ cargo clippy --all-targets -- -D warnings   # CI gate
 cargo fmt --check                           # CI gate
 cargo run -- --spec tests/fixtures/petstore.yaml --config tests/fixtures/config-chaos.yaml
 cargo run -- --spec tests/fixtures/petstore.yaml --validate   # parse + print route table, exit
+cargo run -- --spec tests/fixtures/petstore.yaml --scaffold-config  # print starter config (YAML/JSON per spec), exit
 ```
 
 CI (`.github/workflows/ci.yml`) runs fmt → clippy → test on ubuntu + macos.

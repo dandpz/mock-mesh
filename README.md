@@ -62,6 +62,11 @@ curl localhost:8080/_mockmesh/routes      # what's loaded
 `mock-mesh --spec api.yaml --validate` parses everything, prints the route
 table, and exits — handy in CI.
 
+`mock-mesh --spec api.yaml --scaffold-config > mock-mesh.yaml` generates a
+starter config with one pre-filled entry per operation — no need to hand-write
+rules for every endpoint. Output format follows the spec (JSON spec → JSON
+config); trim the example latency/rate_limit values you don't need.
+
 Runnable, feature-by-feature walkthroughs live in [`examples/`](examples) —
 quickstart, latency, errors, rate limiting, and runtime admin overrides, all
 over one shared spec.
@@ -217,6 +222,7 @@ seeded; a "10% errors" endpoint that always or never failed would be useless.
 | `--no-watch` | – | disable hot reload |
 | `--seed <u64>` | – | deterministic fake data |
 | `--validate` | – | parse, print route table, exit |
+| `--scaffold-config` | – | parse spec, print a starter config to stdout, exit |
 | `--max-body-bytes` | `1048576` | request body cap |
 | `--shutdown-grace-secs` | `10` | drain window on SIGINT/SIGTERM |
 | `--log` | `info` | log filter (`RUST_LOG` also honored) |

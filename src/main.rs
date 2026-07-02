@@ -34,6 +34,33 @@ async fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    if cli.scaffold_config {
+        let cfg = mock_mesh::config::scaffold::scaffold(&docs.spec);
+        // Emit JSON for a JSON spec (JSON has no comments, so no banner),
+        // YAML otherwise.
+        let is_json = cli
+            .spec
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("json"));
+        let rendered = if is_json {
+            serde_json::to_string_pretty(&cfg).map_err(|e| e.to_string())
+        } else {
+            serde_yaml_ng::to_string(&cfg)
+                .map(|y| format!("{}{y}", mock_mesh::config::scaffold::SCAFFOLD_BANNER))
+                .map_err(|e| e.to_string())
+        };
+        return match rendered {
+            Ok(out) => {
+                print!("{out}");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
+
     let table = match compile::build_table(&docs, None) {
         Ok(table) => table,
         Err(e) => {
