@@ -128,6 +128,11 @@ pub enum ResponsePlan {
         status: StatusCode,
         schema: Arc<Schema>,
         root: Arc<Value>,
+        /// Spec-declared query params recognized at compile time: the client
+        /// can size the root array (`?size=100`) and vary seeded content per
+        /// page (`?page=2`).
+        size_param: Option<String>,
+        page_param: Option<String>,
     },
     Empty {
         status: StatusCode,

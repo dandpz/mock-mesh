@@ -21,6 +21,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Node'
+  /herd:
+    get:
+      parameters:
+        - name: size
+          in: query
+          schema: { type: integer }
+        - name: page
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: root-level array
+          content:
+            application/json:
+              schema:
+                type: array
+                minItems: 2
+                maxItems: 3
+                items:
+                  type: object
+                  required: [id, kind]
+                  properties:
+                    id: { type: integer, minimum: 1, maximum: 9 }
+                    kind: { type: string }
+  /wild:
+    get:
+      responses:
+        '200':
+          description: root array with no declared query params
+          content:
+            application/json:
+              schema:
+                type: array
+                minItems: 2
+                maxItems: 3
+                items: { type: integer, minimum: 1, maximum: 9 }
 components:
   schemas:
     Zoo:

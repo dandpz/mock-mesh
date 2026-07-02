@@ -1,0 +1,9 @@
+# Size schema-generated list responses. Only the *root* array of the
+# response is affected — nested arrays keep their schema bounds — and spec
+# `example`s always win (GET /orders still returns its 2-item example
+# verbatim, config or not).
+endpoints:
+  - path: /products
+    method: GET
+    behavior:
+      array_length: 25        # or a range: { min: 10, max: 50 }

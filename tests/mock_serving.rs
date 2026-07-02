@@ -137,6 +137,88 @@ async fn schema_zoo_generates_valid_shapes() {
 }
 
 #[tokio::test]
+async fn array_length_config_sizes_root_array_only() {
+    let app = app("schema-zoo.yaml", Some("config-array-length.yaml"));
+
+    // configured route: root array gets exactly the configured length
+    let (status, body) = get_json(&app, "/herd").await;
+    assert_eq!(status, StatusCode::OK);
+    let herd = body.as_array().unwrap();
+    assert_eq!(herd.len(), 12);
+    for animal in herd {
+        assert!((1..=9).contains(&animal["id"].as_i64().unwrap()));
+        assert!(animal["kind"].is_string());
+    }
+
+    // unconfigured route: nested array keeps schema minItems/maxItems
+    let (_, body) = get_json(&app, "/zoo").await;
+    let pets = body["pets"].as_array().unwrap();
+    assert!((2..=3).contains(&pets.len()));
+}
+
+#[tokio::test]
+async fn array_length_with_seed_stays_deterministic() {
+    let make_app = || {
+        let state = make_state_with(
+            fixture("schema-zoo.yaml"),
+            Some(fixture("config-array-length.yaml")),
+            Some(99),
+            None,
+        );
+        mock_mesh::build_router(state, 1 << 20, false)
+    };
+    let app = make_app();
+    let (_, a) = get_json(&app, "/herd").await;
+    let (_, b) = get_json(&app, "/herd").await;
+    assert_eq!(a.as_array().unwrap().len(), 12);
+    assert_eq!(a, b);
+
+    // across "restarts" (fresh state, same seed)
+    let (_, c) = get_json(&make_app(), "/herd").await;
+    assert_eq!(a, c);
+}
+
+#[tokio::test]
+async fn declared_size_param_beats_config_and_schema() {
+    let app = app("schema-zoo.yaml", Some("config-array-length.yaml"));
+
+    // spec declares `size` on /herd: the client picks the length
+    let (status, body) = get_json(&app, "/herd?size=5").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body.as_array().unwrap().len(), 5);
+
+    // unparsable value: ignored, config array_length (12) applies
+    let (_, body) = get_json(&app, "/herd?size=abc").await;
+    assert_eq!(body.as_array().unwrap().len(), 12);
+
+    // absurd value: clamped, not a 400
+    let (status, body) = get_json(&app, "/herd?size=999999999").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body.as_array().unwrap().len(), 10_000);
+}
+
+#[tokio::test]
+async fn undeclared_query_params_are_not_sniffed() {
+    let app = app("schema-zoo.yaml", None);
+    // /wild declares no query params: ?size must not resize the array
+    let (_, body) = get_json(&app, "/wild?size=50").await;
+    assert!((2..=3).contains(&body.as_array().unwrap().len()));
+}
+
+#[tokio::test]
+async fn page_param_varies_seeded_bodies_deterministically() {
+    let state = make_state_with(fixture("schema-zoo.yaml"), None, Some(7), None);
+    let app = mock_mesh::build_router(state, 1 << 20, false);
+
+    let (_, p1a) = get_json(&app, "/herd?size=4&page=1").await;
+    let (_, p1b) = get_json(&app, "/herd?size=4&page=1").await;
+    let (_, p2) = get_json(&app, "/herd?size=4&page=2").await;
+    assert_eq!(p1a, p1b); // same page: byte-identical
+    assert_ne!(p1a, p2); // different page: different content
+    assert_eq!(p2.as_array().unwrap().len(), 4);
+}
+
+#[tokio::test]
 async fn circular_schema_terminates() {
     let app = app("schema-zoo.yaml", None);
     let (status, body) = get_json(&app, "/node").await;

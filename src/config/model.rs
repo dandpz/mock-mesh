@@ -80,7 +80,43 @@ pub struct Behavior {
     pub rate_limit: Option<RateLimitSpec>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_mode: Option<ErrorModeSpec>,
+    /// Length of the root array of schema-generated responses. Overrides the
+    /// schema's `minItems`/`maxItems`. No effect on example/fixed bodies or
+    /// on arrays nested inside objects.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub array_length: Option<ArrayLengthSpec>,
 }
+
+/// `array_length: 100` or `array_length: { min: 10, max: 20 }`.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum ArrayLengthSpec {
+    Fixed(usize),
+    Range(ArrayLengthRange),
+}
+
+// `deny_unknown_fields` lives on this inner struct because serde ignores it
+// on untagged enums; a typo key makes both variants fail, so the whole field
+// still errors loudly.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ArrayLengthRange {
+    pub min: usize,
+    pub max: usize,
+}
+
+impl ArrayLengthSpec {
+    pub fn bounds(&self) -> (usize, usize) {
+        match self {
+            ArrayLengthSpec::Fixed(n) => (*n, *n),
+            ArrayLengthSpec::Range(r) => (r.min, r.max),
+        }
+    }
+}
+
+/// Beyond this, generated bodies get large enough to look like an accident.
+/// Config values above it are rejected; client-requested sizes clamp to it.
+pub const MAX_ARRAY_LENGTH: usize = 10_000;
 
 impl Behavior {
     /// Fill unset fields from `defaults`.
@@ -95,6 +131,7 @@ impl Behavior {
                 .error_mode
                 .clone()
                 .or_else(|| defaults.error_mode.clone()),
+            array_length: self.array_length.or(defaults.array_length),
         }
     }
 
@@ -130,6 +167,19 @@ impl Behavior {
             {
                 return Err(LoadError::Validation(format!(
                     "{context}: error_mode.probability must be within [0, 1]"
+                )));
+            }
+        }
+        if let Some(spec) = &self.array_length {
+            let (min, max) = spec.bounds();
+            if min > max {
+                return Err(LoadError::Validation(format!(
+                    "{context}: array_length.min must be <= max"
+                )));
+            }
+            if max > MAX_ARRAY_LENGTH {
+                return Err(LoadError::Validation(format!(
+                    "{context}: array_length must be <= {MAX_ARRAY_LENGTH} items"
                 )));
             }
         }
@@ -272,35 +322,84 @@ endpoints:
                 fixed_ms: 20,
                 jitter_ms: 0,
             }),
-            rate_limit: None,
-            error_mode: None,
+            array_length: Some(ArrayLengthSpec::Fixed(5)),
+            ..Default::default()
         };
         let own = Behavior {
             latency: Some(LatencySpec {
                 fixed_ms: 100,
                 jitter_ms: 5,
             }),
-            rate_limit: None,
-            error_mode: None,
+            array_length: Some(ArrayLengthSpec::Fixed(50)),
+            ..Default::default()
         };
         let merged = own.merged_with(&defaults);
         assert_eq!(merged.latency.unwrap().fixed_ms, 100);
+        assert_eq!(merged.array_length, Some(ArrayLengthSpec::Fixed(50)));
         let merged_empty = Behavior::default().merged_with(&defaults);
         assert_eq!(merged_empty.latency.unwrap().fixed_ms, 20);
+        assert_eq!(merged_empty.array_length, Some(ArrayLengthSpec::Fixed(5)));
     }
 
     #[test]
     fn validation_rejects_bad_probability() {
         let b = Behavior {
-            latency: None,
             rate_limit: Some(RateLimitSpec {
                 rps: 10.0,
                 burst: 1,
                 reject_probability: 1.5,
                 response_status: 429,
             }),
-            error_mode: None,
+            ..Default::default()
         };
         assert!(b.validate("test").is_err());
+    }
+
+    #[test]
+    fn array_length_parses_fixed_and_range() {
+        let yaml = "endpoints:\n  - path: /a\n    behavior:\n      array_length: 100\n";
+        let cfg: MockConfig = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(
+            cfg.endpoints[0].behavior.array_length,
+            Some(ArrayLengthSpec::Fixed(100))
+        );
+
+        let yaml =
+            "endpoints:\n  - path: /a\n    behavior:\n      array_length: { min: 2, max: 5 }\n";
+        let cfg: MockConfig = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(
+            cfg.endpoints[0].behavior.array_length,
+            Some(ArrayLengthSpec::Range(ArrayLengthRange { min: 2, max: 5 }))
+        );
+    }
+
+    #[test]
+    fn array_length_rejects_typo_key() {
+        let yaml =
+            "endpoints:\n  - path: /a\n    behavior:\n      array_length: { minn: 2, max: 5 }\n";
+        assert!(serde_yaml_ng::from_str::<MockConfig>(yaml).is_err());
+    }
+
+    #[test]
+    fn array_length_validation() {
+        let with = |spec| Behavior {
+            array_length: Some(spec),
+            ..Default::default()
+        };
+        assert!(
+            with(ArrayLengthSpec::Range(ArrayLengthRange { min: 5, max: 2 }))
+                .validate("test")
+                .is_err()
+        );
+        assert!(
+            with(ArrayLengthSpec::Fixed(20_000))
+                .validate("test")
+                .is_err()
+        );
+        assert!(
+            with(ArrayLengthSpec::Range(ArrayLengthRange { min: 0, max: 0 }))
+                .validate("test")
+                .is_ok()
+        );
     }
 }

@@ -26,6 +26,9 @@ pub struct PathItem {
     pub head: Option<Operation>,
     pub patch: Option<Operation>,
     pub trace: Option<Operation>,
+    /// Parameters shared by every operation on this path.
+    #[serde(default)]
+    pub parameters: Vec<RefOr<ParameterObj>>,
 }
 
 impl PathItem {
@@ -52,6 +55,17 @@ pub struct Operation {
     /// Keys: "200", "404", "2XX", "default"
     #[serde(default)]
     pub responses: BTreeMap<String, RefOr<ResponseObj>>,
+    #[serde(default)]
+    pub parameters: Vec<RefOr<ParameterObj>>,
+}
+
+/// Just enough of a Parameter Object to recognize declared query params.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ParameterObj {
+    pub name: String,
+    /// "query", "path", "header", "cookie"
+    #[serde(rename = "in")]
+    pub location: String,
 }
 
 #[derive(Debug, Default, Deserialize)]

@@ -1,0 +1,5 @@
+endpoints:
+  - path: /herd
+    method: GET
+    behavior:
+      array_length: 12

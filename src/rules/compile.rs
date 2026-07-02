@@ -12,7 +12,7 @@ use http::{HeaderName, HeaderValue, Method, StatusCode};
 use crate::config::model::{EndpointRule, FixedResponse, MethodMatch};
 use crate::error::LoadError;
 use crate::loader::LoadedDocs;
-use crate::openapi::model::{MediaType, Operation, RefOr, ResponseObj};
+use crate::openapi::model::{MediaType, Operation, ParameterObj, RefOr, ResponseObj};
 use crate::openapi::resolve::RefResolver;
 
 use super::{
@@ -50,9 +50,24 @@ pub fn build_table(docs: &LoadedDocs, prev: Option<&MockTable>) -> Result<MockTa
                     } else {
                         RuleSource::Spec
                     };
-                    (plan_from_operation(op, &resolver, docs)?, source)
+                    (
+                        plan_from_operation(op, &item.parameters, &resolver, docs)?,
+                        source,
+                    )
                 }
             };
+
+            // array_length only affects schema-generated bodies; defaults may
+            // blanket-apply, but an endpoint-level setting that can't take
+            // effect deserves a heads-up.
+            if config_ep.is_some_and(|(_, ep)| ep.behavior.array_length.is_some())
+                && !matches!(plan, ResponsePlan::Schema { .. })
+            {
+                tracing::warn!(
+                    route = %shape_key,
+                    "array_length has no effect: response is a fixed/example/empty body, not schema-generated"
+                );
+            }
 
             let behavior = config_ep
                 .map(|(_, ep)| ep.behavior.clone())
@@ -375,8 +390,39 @@ fn decode_base64(s: &str) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
+/// Well-known names, in priority order, for spec-declared query params that
+/// control list sizing and pagination. Only params the spec declares are
+/// honored — the raw query string is never sniffed.
+const SIZE_PARAM_NAMES: &[&str] = &["size", "limit", "per_page", "page_size", "pageSize"];
+const PAGE_PARAM_NAMES: &[&str] = &["page"];
+
+fn find_query_param(
+    names: &[&str],
+    op_params: &[RefOr<ParameterObj>],
+    path_params: &[RefOr<ParameterObj>],
+    resolver: &RefResolver<'_>,
+) -> Option<String> {
+    let declared: Vec<ParameterObj> = op_params
+        .iter()
+        .chain(path_params)
+        .filter_map(|p| match p {
+            RefOr::Item(p) => Some(p.clone()),
+            RefOr::Ref { reference } => resolver
+                .lookup(reference)
+                .ok()
+                .and_then(|v| serde_json::from_value(v.clone()).ok()),
+        })
+        .filter(|p: &ParameterObj| p.location == "query")
+        .collect();
+    names
+        .iter()
+        .find(|n| declared.iter().any(|p| p.name == **n))
+        .map(|n| (*n).to_string())
+}
+
 fn plan_from_operation(
     op: &Operation,
+    path_params: &[RefOr<ParameterObj>],
     resolver: &RefResolver<'_>,
     docs: &LoadedDocs,
 ) -> Result<ResponsePlan, LoadError> {
@@ -423,6 +469,18 @@ fn plan_from_operation(
                 status,
                 schema: Arc::new(schema),
                 root: docs.spec_root.clone(),
+                size_param: find_query_param(
+                    SIZE_PARAM_NAMES,
+                    &op.parameters,
+                    path_params,
+                    resolver,
+                ),
+                page_param: find_query_param(
+                    PAGE_PARAM_NAMES,
+                    &op.parameters,
+                    path_params,
+                    resolver,
+                ),
             })
         }
         None => Ok(ResponsePlan::Empty { status }),
@@ -639,5 +697,37 @@ mod tests {
             ..fixed()
         };
         assert!(plan_from_fixed(&f, "ctx").is_err());
+    }
+
+    #[test]
+    fn query_param_detection_priority_refs_and_location() {
+        let root = serde_json::json!({
+            "components": { "parameters": {
+                "PerPage": { "name": "per_page", "in": "query" }
+            } }
+        });
+        let resolver = RefResolver::new(&root);
+        let params: Vec<RefOr<ParameterObj>> = serde_json::from_value(serde_json::json!([
+            { "name": "limit", "in": "query" },
+            { "name": "size", "in": "path" },
+            { "$ref": "#/components/parameters/PerPage" }
+        ]))
+        .unwrap();
+
+        // "size" is declared but in the path, not the query → "limit" wins;
+        // priority order of SIZE_PARAM_NAMES beats declaration order.
+        assert_eq!(
+            find_query_param(SIZE_PARAM_NAMES, &params, &[], &resolver),
+            Some("limit".to_string())
+        );
+        // $ref-declared params are resolved
+        assert_eq!(
+            find_query_param(&["per_page"], &[], &params, &resolver),
+            Some("per_page".to_string())
+        );
+        assert_eq!(
+            find_query_param(PAGE_PARAM_NAMES, &params, &[], &resolver),
+            None
+        );
     }
 }
