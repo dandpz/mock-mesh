@@ -43,6 +43,10 @@ pub struct Cli {
     #[arg(long)]
     pub validate: bool,
 
+    /// Parse spec, print a scaffold behavior config to stdout, then exit
+    #[arg(long)]
+    pub scaffold_config: bool,
+
     /// Maximum accepted request body size in bytes
     #[arg(long, default_value_t = 1_048_576)]
     pub max_body_bytes: usize,

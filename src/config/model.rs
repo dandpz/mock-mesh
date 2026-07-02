@@ -31,6 +31,7 @@ pub struct EndpointRule {
     #[serde(default)]
     pub behavior: Behavior,
     /// When set, replaces the spec-derived response entirely.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub response: Option<FixedResponse>,
 }
 
